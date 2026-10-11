@@ -17,6 +17,15 @@
 /deepseek-harness/run/run-from-source:
   en: 819e3f7c144d0d64
   zh: de815f040975dba7
+/deepseek-harness/cloudflare-tunnel-extension:
+  en: 8b573842d583d282
+  zh: f6e22cae37bf2f30
+/deepseek-harness/cloudflare-tunnel-extension/supported:
+  en: 0537762f9ece263e
+  zh: 2fcfcc9192c0eb8f
+/deepseek-harness/cloudflare-tunnel-extension/current-limitations-and-todos:
+  en: 7c6408bed7f41cf2
+  zh: 67f77d587cb4ae15
 /deepseek-harness/community-and-support:
   en: 20acf6451fdc869b
   zh: d06246dd019ecef7
