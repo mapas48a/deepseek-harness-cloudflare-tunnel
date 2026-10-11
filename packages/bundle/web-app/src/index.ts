@@ -274,7 +274,7 @@ export function apply(ctx: Context, config: Config): void {
       const announceReady = (): void => {
         if (ANNOUNCED_ROOTS.has(connectionCtx.root)) return
         const webUrl = appRootUrl(connectionCtx, publicUrl)
-        const authenticatedUrl = process.env.DSH_WEB_TRUSTED_HOSTS ? `https://${process.env.DSH_WEB_TRUSTED_HOSTS}` : connectionCtx.connection.authenticatedUrl(webUrl)
+        const authenticatedUrl = process.env.DSH_WEB_TRUSTED_HOSTS ? connectionCtx.connection.authenticatedUrl(`https://${process.env.DSH_WEB_TRUSTED_HOSTS}`) : connectionCtx.connection.authenticatedUrl(webUrl)
         ANNOUNCED_ROOTS.add(connectionCtx.root)
         if (config.printUrl) {
           console.log(`dsh web: ${authenticatedUrl}`)
