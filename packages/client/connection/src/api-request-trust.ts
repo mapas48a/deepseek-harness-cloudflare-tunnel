@@ -12,6 +12,7 @@
  * the webserver config; this fence never establishes identity.
  */
 
+import { isIP } from 'node:net'
 import { isLoopbackHostname } from './loopback-hostname.ts'
 import type { ConnectionTrustRequest } from './rpc.ts'
 
@@ -38,7 +39,8 @@ function parseAuthority(authority: string, scheme: 'http:' | 'https:' = 'http:')
 
 /**
  * Assert one configured `trustedHosts` entry is a bare authority (`host` or
- * `host:port`) in canonical form: it must survive WHATWG parsing unchanged
+ * `host:port`), optionally prefixed with `*.` for subdomains of a DNS suffix
+ * with at least two labels. It must survive WHATWG parsing unchanged
  * (case aside). Anything parsing would silently rewrite is refused as a typo
  * that must fail the load loudly instead of being ignored until requests 403
  * or quietly changing the grant: URL parts beyond the authority
@@ -51,8 +53,14 @@ function parseAuthority(authority: string, scheme: 'http:' | 'https:' = 'http:')
  * @param entry - the configured value, verbatim.
  */
 export function assertTrustedAuthority(entry: string): void {
-  const entryUrl = parseAuthority(entry)
-  if (entryUrl !== undefined && canonicalAuthority(entry, entryUrl) === entry.toLowerCase()) return
+  const authority = entry.startsWith('*.') ? entry.slice(2) : entry
+  const entryUrl = parseAuthority(authority)
+  const wildcardValid = !entry.startsWith('*.') || (entryUrl !== undefined
+    && isIP(entryUrl.hostname) === 0
+    && entryUrl.hostname.includes('.')
+    && entryUrl.hostname.split('.').every(label => /^[a-z0-9](?:[a-z0-9-]*[a-z0-9])?$/iu.test(label)))
+  if (!authority.includes('*') && wildcardValid && entryUrl !== undefined
+    && canonicalAuthority(authority, entryUrl) === authority.toLowerCase()) return
   throw new Error(`client-connection: trustedHosts entry ${JSON.stringify(entry)} is not a bare host[:port] authority`)
 }
 
@@ -71,16 +79,21 @@ function canonicalAuthority(entry: string, entryUrl: URL): string {
 /**
  * Whether the request authority matches a `trustedHosts` entry. An entry with
  * an explicit port matches that exact authority; a port-less entry matches the
- * hostname on any port. Both sides compare through WHATWG normalization,
+ * hostname on any port. A `*.` prefix matches subdomains, never the suffix
+ * itself. Both sides compare through WHATWG normalization,
  * so case and a redundant scheme-default port never decide trust.
  */
 function isTrustedAuthority(hostUrl: URL, trustedHosts: readonly string[], protocol: 'http:' | 'https:'): boolean {
   return trustedHosts.some((entry) => {
-    const entryUrl = parseAuthority(entry, protocol)
+    const wildcard = entry.startsWith('*.')
+    const authority = wildcard ? entry.slice(2) : entry
+    const entryUrl = parseAuthority(authority, protocol)
     if (entryUrl === undefined) return false
-    return canonicalAuthority(entry, entryUrl) === entryUrl.hostname
-      ? entryUrl.hostname === hostUrl.hostname
-      : entryUrl.host === hostUrl.host
+    const hostnameMatches = wildcard
+      ? hostUrl.hostname.endsWith(`.${entryUrl.hostname}`)
+      : entryUrl.hostname === hostUrl.hostname
+    return hostnameMatches && (canonicalAuthority(authority, entryUrl) === entryUrl.hostname
+      || entryUrl.port === hostUrl.port)
   })
 }
 
@@ -113,7 +126,7 @@ function isBindAddressAuthority(hostUrl: URL, bindHost: string | undefined): boo
 /**
  * Decide whether one /api request may reach the RPC bridge.
  * @param request - Node HTTP or Fetch request facts (headers).
- * @param trustedHosts - non-loopback authorities this deployment serves: exact `host:port`, or port-less `host` matching any port.
+ * @param trustedHosts - served authorities: `host[:port]` or `*.suffix[:port]`; omitted ports match any port.
  * @param bindHost - the listener's own bind IP literal, accepted on any port independently of `trustedHosts`.
  * @param protocol - listener protocol for default Host ports; HTTP when no Web carrier is mounted.
  * @returns true when the Host is ours (loopback, the bind address, or trusted) and any attached browser markers are same-origin.
@@ -134,7 +147,7 @@ export function isTrustedApiRequest(
   const host = header(request.headers, 'host')
   if (host === undefined) return false
   const hostUrl = parseAuthority(host, protocol)
-  if (hostUrl === undefined) return false
+  if (hostUrl === undefined || hostUrl.hostname.includes('*')) return false
   if (!isLoopbackHostname(hostUrl.hostname)
     && !isTrustedAuthority(hostUrl, trustedHosts, protocol)
     && !isBindAddressAuthority(hostUrl, bindHost)) return false

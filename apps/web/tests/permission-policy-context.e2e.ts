@@ -23,6 +23,7 @@ import { connectFreshWorkspace, newEnglishPage, saveFailureShot, writeComposerDr
 const SNAPSHOT_DIR = fileURLToPath(new URL('../../../snapshots/web/permission-policy-context', import.meta.url))
 const FIXTURE = fileURLToPath(new URL('../../../snapshots/web/permission-policy-context/session.v3.jsonl', import.meta.url))
 const MODE = webSnapshotMode()
+const TUNNEL_HOST = 'workspace.trycloudflare.com'
 
 const PROMPTS = [
   'Can you create or edit a normal file right now under the current policy? Answer directly in one sentence. Do not call a tool just to discover the policy.',
@@ -73,6 +74,8 @@ describe('web e2e: current sandbox policy reaches the model before tools', () =>
 
   beforeAll(async () => {
     scaffold = await launchWebScaffold({
+      publicMount: { host: TUNNEL_HOST, trustedHosts: ['*.trycloudflare.com'] },
+      welcomeNoticePending: true,
       ...MODE === 'record' ? {} : { replayFixture: FIXTURE, compareReplaySession: true },
       ...process.platform === 'win32' ? {} : {
         extraOverlayPath: fileURLToPath(new URL('./fixtures/sidebar-terminal.patch.yml', import.meta.url)),
@@ -84,11 +87,16 @@ describe('web e2e: current sandbox policy reaches the model before tools', () =>
       sessionWorkspace = session.header.cwd
       sessionEvents.push(event)
     })
-    browser = await chromium.launch()
+    browser = await chromium.launch({ args: [
+      `--host-resolver-rules=MAP ${TUNNEL_HOST} 127.0.0.1`, '--no-proxy-server',
+    ] })
     page = await newEnglishPage(browser)
     tripwire = watchConsole(page)
     await page.goto(scaffold.authenticatedUrl, { waitUntil: 'load' })
     await page.waitForSelector('[class*="frame"]', { timeout: 30_000 })
+    const welcome = page.getByRole('dialog', { name: 'Preview Notice' })
+    await welcome.getByRole('button', { name: 'Continue', exact: true }).click()
+    await welcome.waitFor({ state: 'detached' })
     await connectFreshWorkspace(page, scaffold.workspaceCwd)
   }, 120_000)
 

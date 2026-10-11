@@ -34,4 +34,24 @@ dsh --profile web --public-url https://app.example/ui/ --trusted-host app.exampl
 
 打印的 URL 携带进程凭据，只应与预期用户分享。
 
+<a id="tunnels-configured-through-env"></a>
+## 通过 `.env` 配置隧道
+
+使用 Cloudflare quick tunnel 时，可把以下值放进启动 DSH 的目录中的 `.env`，或 `$DSH_HOME/.env`（通常为 `~/.dsh/.env`）。源码 checkout 提供 [`.env.example`](../../../.env.example)。启动前请检查该文件：其 Web 设置可以改变监听器与已接受的 authority。
+
+```dotenv
+DSH_WEB_HOST=127.0.0.1
+DSH_WEB_PORT=3080
+DSH_WEB_OPEN_BROWSER=false
+DSH_WEB_TRUSTED_HOSTS=*.trycloudflare.com
+```
+
+运行 `dsh web`（checkout 中用 `pnpm dsh web`），再让隧道连接 `http://127.0.0.1:3080`。按上文保留公开 Host 并转发 WebSocket 升级。DSH 接纳配置后缀下变化的子域名，无需重启或更新列表。其他提供方需显式声明其后缀或确切主机名。[Connection 参考](../../../packages/client/connection/README.zh.md#browser-authentication-and-request-trust)定义模式匹配与认证。
+
+在当前 HTTPS 隧道根 URL 上附加 DSH 启动行中的 `?token=...` 并打开。只把启动 URL 的 origin 换成隧道 origin，保留路径与 token。隧道主机名变化后需要再次登录，因为 cookie 绑定一个主机名与端口。现有工作区与 Session 保留在 DSH 主机上。可选地把 `DSH_WEB_PUBLIC_URL` 设置为当前 HTTPS 根并重启 DSH，以打印完整登录链接并向 agent 公告该地址。不设置它可避免隧道 URL 轮换后的过期公告；浏览器的 HTTP 与 WebSocket URL 根据实际打开的页面解析。
+
+使用 **Add workspace** 浏览运行 DSH 的计算机上的目录。远程 authority 配置选择页面内目录选择器，无需在该计算机上打开原生对话框。打开所需的本地目录，使用 **Workspace Write** 允许 agent 在其中编辑。文件侧栏预览文件；agent 的 write/edit 工具或侧栏终端修改文件。即使浏览器位于另一设备，这些操作也影响 DSH 主机的文件系统。模型调用仍需已配置的模型凭据，文件系统操作仍遵循操作系统权限与所选 agent 策略。
+
+`/api` 或 WebSocket 握手返回 `403` 表示 Host/Origin 信任检查拒绝：请检查后缀并确保隧道保留 Host。`401` 表示浏览器认证缺失或过期：请附加进程 token 重新打开当前隧道根。修改 `.env` 后需重启 DSH；命令行选项与继承环境变量可以覆盖其中的值。
+
 [Web 应用参考](../../../packages/bundle/web-app/README.zh.md#public-deployments)说明 `--public-url`、`--trusted-host` 与 `--tls-cert`/`--tls-key` 命令行选项。在 Web profile 中，`publicUrl` 配置在 `web-runtime` 行，`trustedHosts` 配置在 [Connection 行](../../../packages/client/connection/README.zh.md)，`tls` 配置在 [webserver 行](../../../docs/subsystems/web-server.zh.md#config)。

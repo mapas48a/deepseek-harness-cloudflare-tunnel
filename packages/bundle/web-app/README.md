@@ -44,7 +44,10 @@ After startup you see a `dsh web:` line whose root URL carries a fresh process t
 
 Saved model selections override the composition default. The settings card accepts a Messages-compatible API address and a credential reference.
 
+<a id="configuration"></a>
 ### Configuration
+
+Web startup reads `DSH_WEB_HOST`, `DSH_WEB_PORT`, `DSH_WEB_PUBLIC_URL`, `DSH_WEB_TRUSTED_HOSTS`, `DSH_WEB_TLS_CERT`, and `DSH_WEB_TLS_KEY` as defaults for the corresponding flags. `DSH_WEB_OPEN_BROWSER` accepts exactly `true` or `false`; `--no-open` always suppresses opening. `DSH_WEB_TRUSTED_HOSTS` is a comma-separated authority list. Explicit flags replace the corresponding environment values. The [environment loader](../../boot/app-boot/README.md#profiles) accepts these seven names in the invoking directory's `.env` and `$DSH_HOME/.env`, with inherited values taking precedence. Restart DSH after editing either file. For setup and workspace access, see [tunnels configured through `.env`](../../../docs/user/guide/public-deployments.md#tunnels-configured-through-env).
 
 `--host` and `--port` configure the listener; `--tls-cert` and `--tls-key` make it serve HTTPS; `--public-url` names the advertised public HTTP(S) root the GUI is reached at behind a prefix-stripping proxy, and `--trusted-host` adds further accepted authorities. All are described under [Listening, trust, and public deployments](#public-deployments), and the `tls` field those flags set is documented with the [carrier's config](../../../docs/subsystems/web-server.md#config):
 

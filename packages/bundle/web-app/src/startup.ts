@@ -7,7 +7,7 @@
  * @module @deepseek-ai/dsh-web-app/startup
  */
 
-import { Command } from 'commander'
+import { Command, Option } from 'commander'
 import type { Context } from '@deepseek-ai/cordis'
 import { parseCmdline } from '@deepseek-ai/dsh-cmdline'
 import { isWildcardHost, type TlsConfig } from '@deepseek-ai/dsh-host-webserver'
@@ -26,16 +26,16 @@ export const WEB_STARTUP_SERVICE = 'webStartup'
 export interface WebStartupValues {
   /** Whether this invocation opens the default browser after startup. */
   openBrowser: boolean
-  /** `--host`, absent when the invocation did not name one. */
+  /** `--host` or `DSH_WEB_HOST`, absent when neither names one. */
   host?: string
-  /** `--port`, absent when the invocation did not name one. */
+  /** `--port` or `DSH_WEB_PORT`, absent when neither names one. */
   port?: number
   /**
-   * `--public-url`, absent when not specified: the advertised HTTP(S) root.
+   * `--public-url` or `DSH_WEB_PUBLIC_URL`: the advertised HTTP(S) root.
    * See [public deployments](../README.md#public-deployments).
    */
   publicUrl?: string
-  /** Explicit `--trusted-host` authorities, in argument order. */
+  /** `--trusted-host` authorities or the comma-separated `DSH_WEB_TRUSTED_HOSTS` list. */
   trustedHosts: string[]
   /** Server certificate chain and unencrypted private key supplied together. */
   tls?: TlsConfig
@@ -61,13 +61,15 @@ function webCommand(): Command {
     .name('dsh --profile web')
     .description('Serve the DeepSeek Harness browser UI.')
     .helpOption('-h, --help', 'show this help')
-    .option('--host <host>', 'bind address: one concrete IPv4 or IPv6 literal of a local interface; wildcard addresses are rejected')
+    .addOption(new Option('--host <host>', 'bind address: one concrete IPv4 or IPv6 literal of a local interface; wildcard addresses are rejected').env('DSH_WEB_HOST'))
     .option('--no-open', 'do not open the Web UI in the default browser')
-    .option('--port <port>', 'listen port; pass 0 to let the OS pick a free one')
-    .option('--public-url <url>', 'advertise this HTTP(S) root in the printed, opened, web-surface, and DSH_WEB_URL forms; grants no trust')
-    .option('--trusted-host <authority...>', 'extra authority the /api browser-trust fence accepts (host or host:port; repeatable)')
-    .option('--tls-cert <file>', 'PEM server certificate chain; requires --tls-key')
-    .option('--tls-key <file>', 'unencrypted PEM private key; requires --tls-cert')
+    .addOption(new Option('--port <port>', 'listen port; pass 0 to let the OS pick a free one').env('DSH_WEB_PORT'))
+    .addOption(new Option('--public-url <url>', 'advertise this HTTP(S) root in the printed, opened, web-surface, and DSH_WEB_URL forms; grants no trust').env('DSH_WEB_PUBLIC_URL'))
+    .addOption(new Option('--trusted-host <authority...>', 'extra authority the /api browser-trust fence accepts (host[:port] or *.suffix[:port]; repeatable)')
+      .env('DSH_WEB_TRUSTED_HOSTS')
+      .argParser((value: string, previous: string[] | undefined) => [...previous ?? [], ...value.split(',').map(entry => entry.trim())]))
+    .addOption(new Option('--tls-cert <file>', 'PEM server certificate chain; requires --tls-key').env('DSH_WEB_TLS_CERT'))
+    .addOption(new Option('--tls-key <file>', 'unencrypted PEM private key; requires --tls-cert').env('DSH_WEB_TLS_KEY'))
     .addHelpText('after', `
 Examples:
   dsh --profile web                          serve on the composed host and port
@@ -77,7 +79,11 @@ Examples:
   dsh --profile web --public-url https://app.example/ui/ --trusted-host app.example
                                              advertise a prefix-stripping HTTPS proxy entry and admit its authority
   dsh --profile web --tls-cert ./server-chain.pem --tls-key ./server-key.pem
-                                             serve HTTPS with an existing certificate and key
+                                              serve HTTPS with an existing certificate and key
+
+Environment:
+  DSH_WEB_OPEN_BROWSER=true|false             open the browser unless --no-open is supplied
+  DSH_WEB_TRUSTED_HOSTS=*.trycloudflare.com    admit changing tunnel subdomains; authentication remains required
 `)
 }
 
@@ -95,8 +101,12 @@ export function apply(ctx: Context): void {
     if (options.host !== undefined && isWildcardHost(options.host)) {
       program.error(`error: --host ${options.host} is an unspecified (wildcard) address, which is not supported: binding every interface would expose remote code execution to the network; bind one concrete IPv4 or IPv6 address instead`)
     }
-    if (options.port !== undefined && !/^\d+$/.test(options.port)) {
-      program.error(`error: --port must be a number, got ${JSON.stringify(options.port)}`)
+    if (options.port !== undefined && (!/^\d+$/.test(options.port) || Number(options.port) > 65535)) {
+      program.error(`error: --port must be a number from 0 through 65535, got ${JSON.stringify(options.port)}`)
+    }
+    const openBrowserEnv = process.env.DSH_WEB_OPEN_BROWSER
+    if (openBrowserEnv !== undefined && openBrowserEnv !== 'true' && openBrowserEnv !== 'false') {
+      program.error('error: DSH_WEB_OPEN_BROWSER must be true or false')
     }
     let tls: TlsConfig | undefined
     if (options.tlsCert !== undefined && options.tlsKey !== undefined) {
@@ -112,7 +122,7 @@ export function apply(ctx: Context): void {
       }
     }
     ctx.provide(WEB_STARTUP_SERVICE, {
-      openBrowser: options.open,
+      openBrowser: options.open && openBrowserEnv !== 'false',
       ...options.host !== undefined && { host: options.host },
       ...options.port !== undefined && { port: Number(options.port) },
       ...options.publicUrl !== undefined && { publicUrl: options.publicUrl },

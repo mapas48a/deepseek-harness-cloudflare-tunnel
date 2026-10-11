@@ -11,7 +11,7 @@ import { Context } from '@deepseek-ai/cordis'
 import Loader from '@deepseek-ai/cordis-plugin-loader'
 import Include from '@deepseek-ai/cordis-plugin-include'
 import { internals, provideCmdline } from '@deepseek-ai/dsh-cmdline'
-import { afterEach, describe, expect, it } from 'vitest'
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { apply, WEB_STARTUP_SERVICE, type WebStartupValues } from '../src/startup.ts'
 
 /** What one fixture boot observed. */
@@ -26,11 +26,18 @@ const disposers: (() => Promise<void>)[] = []
 /** Fixture tree roots, removed after their booted tree has been disposed. */
 const tempDirs: string[] = []
 
+beforeEach(() => {
+  for (const name of ['HOST', 'PORT', 'PUBLIC_URL', 'TRUSTED_HOSTS', 'TLS_CERT', 'TLS_KEY', 'OPEN_BROWSER']) {
+    vi.stubEnv(`DSH_WEB_${name}`, undefined)
+  }
+})
+
 afterEach(async () => {
   for (const dispose of disposers.splice(0)) await dispose()
   for (const dir of tempDirs.splice(0)) rmSync(dir, { recursive: true, force: true })
   internals.stdout = process.stdout
   internals.stderr = process.stderr
+  vi.unstubAllEnvs()
 })
 
 /**
@@ -94,6 +101,57 @@ export const apply = ctx => globalThis.__webStartupApply(ctx)
 }
 
 describe('web command-line provider', () => {
+  it('resolves Web environment settings before releasing consumers', async () => {
+    vi.stubEnv('DSH_WEB_HOST', '127.0.0.1')
+    vi.stubEnv('DSH_WEB_PORT', '8080')
+    vi.stubEnv('DSH_WEB_PUBLIC_URL', 'https://current.trycloudflare.com')
+    vi.stubEnv('DSH_WEB_TRUSTED_HOSTS', '*.trycloudflare.com, lab.internal:8080')
+    vi.stubEnv('DSH_WEB_TLS_CERT', 'fullchain.pem')
+    vi.stubEnv('DSH_WEB_TLS_KEY', 'private-key.pem')
+    vi.stubEnv('DSH_WEB_OPEN_BROWSER', 'false')
+    const { values, observed } = await bootProvider([])
+    expect(values).toEqual({
+      host: '127.0.0.1', port: 8080, openBrowser: false,
+      publicUrl: 'https://current.trycloudflare.com',
+      trustedHosts: ['*.trycloudflare.com', 'lab.internal:8080'],
+      tls: { certFile: 'fullchain.pem', keyFile: 'private-key.pem' },
+    })
+    expect(observed.readerConfig).toEqual(values)
+  })
+
+  it('lets explicit flags replace their environment defaults', async () => {
+    vi.stubEnv('DSH_WEB_HOST', '10.0.0.1')
+    vi.stubEnv('DSH_WEB_PORT', '8080')
+    vi.stubEnv('DSH_WEB_PUBLIC_URL', 'https://old.trycloudflare.com')
+    vi.stubEnv('DSH_WEB_TRUSTED_HOSTS', '*.trycloudflare.com')
+    vi.stubEnv('DSH_WEB_OPEN_BROWSER', 'true')
+    const { values } = await bootProvider([
+      '--host', '127.0.0.1', '--port', '0', '--no-open',
+      '--public-url', 'https://new.trycloudflare.com', '--trusted-host', 'new.trycloudflare.com',
+    ])
+    expect(values).toEqual({
+      host: '127.0.0.1', port: 0, openBrowser: false,
+      publicUrl: 'https://new.trycloudflare.com', trustedHosts: ['new.trycloudflare.com'],
+    })
+  })
+
+  it.each([
+    ['DSH_WEB_PORT', '65536', '--port must be a number'],
+    ['DSH_WEB_PORT', '-1', '--port must be a number'],
+    ['DSH_WEB_PORT', '', '--port must be a number'],
+    ['DSH_WEB_HOST', '0.0.0.0', 'is an unspecified (wildcard) address'],
+    ['DSH_WEB_PUBLIC_URL', '/relative', '--public-url must be an absolute'],
+    ['DSH_WEB_TLS_CERT', 'server.pem', '--tls-cert and --tls-key must be supplied together'],
+    ['DSH_WEB_OPEN_BROWSER', 'yes', 'DSH_WEB_OPEN_BROWSER must be true or false'],
+  ])('rejects invalid %s=%s before consumers activate', async (name, value, message) => {
+    vi.stubEnv(name, value)
+    const { values, observed } = await bootProvider([])
+    expect(values).toBeUndefined()
+    expect(observed.readerConfig).toBeUndefined()
+    expect(observed.out).toContain(message)
+    expect(observed.exits).toEqual([1])
+  })
+
   it('publishes each flag and releases direct service expressions', async () => {
     const { values, observed } = await bootProvider([
       '--host', '127.0.0.1',

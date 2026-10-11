@@ -443,8 +443,10 @@ export interface ConnectionConfig {
   /** Browser recovery timing, injected into each served page. */
   recovery?: ConnectionRecoveryConfig
   /**
-   * Authorities this deployment serves beyond loopback: exact `host:port`, or
-   * port-less `host` matching any port. The fence accepts loopback and the
+   * Authorities this deployment serves beyond loopback: `host[:port]`, or
+   * `*.suffix[:port]` matching subdomains of a DNS suffix with at least two
+   * labels, never the suffix itself. Omitted ports match any port.
+   * The fence accepts loopback and the
    * listener's own bind IP independently; other remote authorities require
    * an entry here. A non-canonical or non-bare authority fails plugin load.
    */

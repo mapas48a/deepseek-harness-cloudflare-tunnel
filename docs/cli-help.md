@@ -175,19 +175,20 @@ Serve the DeepSeek Harness browser UI.
 Options:
   --host <host>                  bind address: one concrete IPv4 or IPv6 literal
                                  of a local interface; wildcard addresses are
-                                 rejected
+                                 rejected (env: DSH_WEB_HOST)
   --no-open                      do not open the Web UI in the default browser
   --port <port>                  listen port; pass 0 to let the OS pick a free
-                                 one
+                                 one (env: DSH_WEB_PORT)
   --public-url <url>             advertise this HTTP(S) root in the printed,
                                  opened, web-surface, and DSH_WEB_URL forms;
-                                 grants no trust
+                                 grants no trust (env: DSH_WEB_PUBLIC_URL)
   --trusted-host <authority...>  extra authority the /api browser-trust fence
-                                 accepts (host or host:port; repeatable)
+                                 accepts (host[:port] or *.suffix[:port];
+                                 repeatable) (env: DSH_WEB_TRUSTED_HOSTS)
   --tls-cert <file>              PEM server certificate chain; requires
-                                 --tls-key
+                                 --tls-key (env: DSH_WEB_TLS_CERT)
   --tls-key <file>               unencrypted PEM private key; requires
-                                 --tls-cert
+                                 --tls-cert (env: DSH_WEB_TLS_KEY)
   -h, --help                     show this help
 
 Examples:
@@ -198,6 +199,10 @@ Examples:
   dsh --profile web --public-url https://app.example/ui/ --trusted-host app.example
                                              advertise a prefix-stripping HTTPS proxy entry and admit its authority
   dsh --profile web --tls-cert ./server-chain.pem --tls-key ./server-key.pem
-                                             serve HTTPS with an existing certificate and key
+                                              serve HTTPS with an existing certificate and key
+
+Environment:
+  DSH_WEB_OPEN_BROWSER=true|false             open the browser unless --no-open is supplied
+  DSH_WEB_TRUSTED_HOSTS=*.trycloudflare.com    admit changing tunnel subdomains; authentication remains required
 
 ```

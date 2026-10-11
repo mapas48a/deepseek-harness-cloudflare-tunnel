@@ -87,6 +87,28 @@ describe('isTrustedApiRequest', () => {
     expect(isTrustedApiRequest(request(headers), [])).toBe(false)
   })
 
+  it('admits changing tunnel subdomains only under the configured suffix and port', () => {
+    const trusted = ['*.trycloudflare.com:443']
+    for (const host of ['first.trycloudflare.com:443', 'second.trycloudflare.com:443']) {
+      expect(isTrustedApiRequest(request({ host, origin: `https://${host}` }), trusted)).toBe(true)
+    }
+    for (const host of ['trycloudflare.com', 'eviltrycloudflare.com', 'first.trycloudflare.com.evil.example', 'first.trycloudflare.com:444']) {
+      expect(isTrustedApiRequest(request({ host, origin: `https://${host}` }), trusted)).toBe(false)
+    }
+    expect(isTrustedApiRequest(request({ host: 'first.trycloudflare.com:8080' }), ['*.trycloudflare.com'])).toBe(true)
+    expect(isTrustedApiRequest(request({ host: 'first.trycloudflare.com', origin: 'https://first.trycloudflare.com' }), ['*.trycloudflare.com'])).toBe(true)
+    expect(isTrustedApiRequest(request({ host: '*.trycloudflare.com' }), ['*.trycloudflare.com'])).toBe(false)
+    expect(isTrustedApiRequest(request({ host: 'first.trycloudflare.com', origin: 'https://second.trycloudflare.com' }), trusted)).toBe(false)
+    expect(isTrustedApiRequest(request({ host: 'first.trycloudflare.com', 'sec-fetch-site': 'cross-site' }), trusted)).toBe(false)
+  })
+
+  it('rejects unrestricted or malformed wildcard configuration', () => {
+    expect(() => { assertTrustedAuthority('*.trycloudflare.com:443') }).not.toThrow()
+    for (const entry of ['*', '*:443', '*cloudflare.com', 'tunnel.*.com', '*.*.com', '*.com', '*.127.0.0.1', '*.trycloudflare.com/path']) {
+      expect(() => { assertTrustedAuthority(entry) }).toThrow()
+    }
+  })
+
   it('matches Host, Origin, and trusted entries through WHATWG normalization (case, default port)', () => {
     expect(isTrustedApiRequest(request({ host: 'Harness.INTERNAL:3080', origin: 'http://harness.internal:3080' }), ['harness.internal:3080'])).toBe(true)
     expect(isTrustedApiRequest(request({ host: 'harness.internal', origin: 'http://harness.internal' }), ['HARNESS.internal:80'])).toBe(true)

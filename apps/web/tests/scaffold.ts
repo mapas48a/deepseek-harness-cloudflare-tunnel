@@ -439,6 +439,10 @@ export interface LaunchOptions {
   publicMount?: {
     /** Canonical mount prefix (default `tools/dsh/`, normalized to lead and end in `/`). */
     prefix?: string
+    /** Browser-facing hostname; custom names require a browser resolver override. */
+    host?: string
+    /** Authority grants to exercise instead of trusting the proxy hostname exactly. */
+    trustedHosts?: string[]
   }
   /** Reuse an existing harness home so a second Host can verify user settings across origins. */
   harnessHome?: string
@@ -475,7 +479,7 @@ export async function launchWebScaffold(options: LaunchOptions = {}): Promise<We
   const compareReplaySession = options.compareReplaySession ?? await ownsReplayFixture(replayFixture)
   const publicMount = options.publicMount
   // Chromium maps *.localhost to loopback without a resolver.
-  const publicHost = publicMount === undefined ? undefined : 'public.localhost'
+  const publicHost = publicMount === undefined ? undefined : publicMount.host ?? 'public.localhost'
   const publicPrefix = publicMount === undefined
     ? undefined
     : `/${(publicMount.prefix ?? 'tools/dsh/').replace(/^\/+|\/+$/gu, '')}/`
@@ -641,7 +645,7 @@ export async function launchWebScaffold(options: LaunchOptions = {}): Promise<We
         id: 'connection',
         config: {
           trustedHosts: [
-            ...publicHost === undefined ? [] : [publicHost],
+            ...publicHost === undefined ? [] : publicMount?.trustedHosts ?? [publicHost],
             ...options.remoteAuthority === undefined ? [] : [options.remoteAuthority],
           ],
         },

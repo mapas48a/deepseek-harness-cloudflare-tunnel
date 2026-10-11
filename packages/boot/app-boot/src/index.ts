@@ -166,6 +166,12 @@ const BOOTSTRAP_PREFIXES = ['DSH_', 'XDG_', 'DYLD_', 'BASH_FUNC_']
  */
 const HOME_LAYER_PROXY_NAMES = new Set(['HTTP_PROXY', 'HTTPS_PROXY', 'ALL_PROXY', 'NO_PROXY'])
 
+/** Web deployment settings accepted from either dotenv layer; executable and permission settings remain inherited-only. */
+const WEB_ENV_NAMES = new Set([
+  'DSH_WEB_HOST', 'DSH_WEB_PORT', 'DSH_WEB_PUBLIC_URL', 'DSH_WEB_TRUSTED_HOSTS',
+  'DSH_WEB_TLS_CERT', 'DSH_WEB_TLS_KEY', 'DSH_WEB_OPEN_BROWSER',
+])
+
 /**
  * Whether a variable may come only from the inherited process environment
  * because it changes process, runtime, VCS, or network bootstrap. The Harness-home
@@ -175,6 +181,7 @@ const HOME_LAYER_PROXY_NAMES = new Set(['HTTP_PROXY', 'HTTPS_PROXY', 'ALL_PROXY'
  */
 function isBootstrapOnly(name: string): boolean {
   const upper = name.toUpperCase()
+  if (WEB_ENV_NAMES.has(name)) return false
   return BOOTSTRAP_NAMES.has(upper) || BOOTSTRAP_PREFIXES.some(prefix => upper.startsWith(prefix))
 }
 

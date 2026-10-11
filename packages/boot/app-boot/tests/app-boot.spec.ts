@@ -104,6 +104,36 @@ describe('loadLayeredEnv', () => {
     for (const name of NAMES) Reflect.deleteProperty(process.env, name)
   }
 
+  it('accepts only the declared Web deployment names from either dotenv layer', () => {
+    const home = tmp()
+    const project = tmp()
+    const settings = {
+      DSH_WEB_HOST: '127.0.0.1', DSH_WEB_PORT: '3080',
+      DSH_WEB_PUBLIC_URL: 'https://current.trycloudflare.com',
+      DSH_WEB_TRUSTED_HOSTS: '*.trycloudflare.com', DSH_WEB_OPEN_BROWSER: 'false',
+      DSH_WEB_TLS_CERT: 'chain.pem', DSH_WEB_TLS_KEY: 'key.pem',
+    }
+    vi.stubEnv('DSH_HOME', home)
+    for (const name of Object.keys(settings)) vi.stubEnv(name, undefined)
+    writeFileSync(join(home, '.env'), Object.entries(settings).map(([name, value]) => `${name}=${value}\n`).join(''))
+    writeFileSync(join(project, '.env'), 'DSH_WEB_PORT=8080\n')
+    try {
+      const snapshot = loadLayeredEnv(NAME, project, vi.fn())
+      expect(snapshot.get('DSH_WEB_PORT')).toEqual({ value: '8080', source: 'project-env', path: join(project, '.env') })
+      for (const [name, value] of Object.entries(settings)) {
+        if (name === 'DSH_WEB_PORT') continue
+        expect(snapshot.get(name)?.value).toBe(value)
+        expect(process.env[name]).toBe(value)
+      }
+      vi.stubEnv('DSH_WEB_PORT', '9000')
+      expect(loadLayeredEnv(NAME, project, vi.fn()).get('DSH_WEB_PORT')).toEqual({ value: '9000', source: 'process' })
+      writeFileSync(join(project, '.env'), 'DSH_WEB_UNDECLARED=1\n')
+      expect(() => loadLayeredEnv(NAME, project, vi.fn())).toThrow(/only the launching environment may set/)
+    } finally {
+      vi.unstubAllEnvs()
+    }
+  })
+
   it('layers user under project under the inherited environment', () => {
     const home = tmp()
     const project = tmp()

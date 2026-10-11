@@ -34,4 +34,24 @@ To terminate on the listener, pass `--tls-cert` and `--tls-key`, each a path res
 
 The printed URL carries a process credential, so share it only with intended users.
 
+<a id="tunnels-configured-through-env"></a>
+## Tunnels configured through `.env`
+
+For a Cloudflare quick tunnel, put these values in `.env` in the directory where you launch DSH, or in `$DSH_HOME/.env` (normally `~/.dsh/.env`). A source checkout includes [`.env.example`](../../../.env.example). Review the file before launching: its Web settings can change the listener and accepted authorities.
+
+```dotenv
+DSH_WEB_HOST=127.0.0.1
+DSH_WEB_PORT=3080
+DSH_WEB_OPEN_BROWSER=false
+DSH_WEB_TRUSTED_HOSTS=*.trycloudflare.com
+```
+
+Run `dsh web` (`pnpm dsh web` in a checkout), then point your tunnel at `http://127.0.0.1:3080`. Preserve the public Host and forward WebSocket upgrades as described above. DSH admits changing subdomains under the configured suffix without restarting or updating that list. Other providers need their own explicit suffix or exact hostname. The [Connection reference](../../../packages/client/connection/README.md#browser-authentication-and-request-trust) defines pattern matching and authentication.
+
+Open the current HTTPS tunnel root with the `?token=...` from DSH's startup line. Replace only the startup URL's origin with the tunnel origin, keeping its path and token. A new tunnel hostname needs this login again because cookies are bound to one hostname and port. Existing workspaces and Sessions remain on the DSH host. Optionally set `DSH_WEB_PUBLIC_URL` to the current HTTPS root and restart DSH to print that complete login link and advertise it to the agent. Leaving it unset avoids a stale advertisement when tunnel URLs rotate; the browser's HTTP and WebSocket URLs resolve from the page you actually opened.
+
+Use **Add workspace** to browse directories on the computer running DSH. Remote authority configuration selects the in-page picker, so it needs no native dialog on that computer. Open the desired local directory and use **Workspace Write** for agent edits inside it. The file sidebar previews files; the agent's write/edit tools or the sidebar terminal modify them. These operations affect the DSH host's filesystem, even when the browser is on another device. Model calls still require configured model credentials, and filesystem operations retain operating-system permissions and the selected agent policy.
+
+A `403` from `/api` or the WebSocket handshake means Host/Origin trust was refused: check the suffix and ensure the tunnel preserves Host. A `401` means browser authentication is missing or expired: reopen the current tunnel root with the process token. After changing `.env`, restart DSH; command-line flags and inherited variables can override its values.
+
 The [Web app reference](../../../packages/bundle/web-app/README.md#public-deployments) documents the `--public-url`, `--trusted-host`, and `--tls-cert`/`--tls-key` command-line options. In the Web profile, `publicUrl` configures the `web-runtime` row, `trustedHosts` configures the [Connection row](../../../packages/client/connection/README.md), and `tls` configures the [webserver row](../../../docs/subsystems/web-server.md#config).

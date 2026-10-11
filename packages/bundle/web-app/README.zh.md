@@ -44,7 +44,10 @@ dsh --profile web --no-open --port 8080
 
 已保存的模型选择覆盖组合默认值。设置卡接受兼容 Messages 的 API 地址与凭据引用。
 
+<a id="configuration"></a>
 ### 配置
+
+Web 启动读取 `DSH_WEB_HOST`、`DSH_WEB_PORT`、`DSH_WEB_PUBLIC_URL`、`DSH_WEB_TRUSTED_HOSTS`、`DSH_WEB_TLS_CERT` 与 `DSH_WEB_TLS_KEY`，作为对应命令行选项的默认值。`DSH_WEB_OPEN_BROWSER` 只接受 `true` 或 `false`；`--no-open` 始终禁止自动打开。`DSH_WEB_TRUSTED_HOSTS` 是逗号分隔的 authority 列表。显式命令行选项替换对应的环境值。[环境加载器](../../boot/app-boot/README.zh.md#profiles)在调用目录的 `.env` 与 `$DSH_HOME/.env` 中接受这七个名称，继承环境值优先。编辑任一文件后需重启 DSH。配置与工作区访问参见[通过 `.env` 配置隧道](../../../docs/user/guide/public-deployments.zh.md#tunnels-configured-through-env)。
 
 `--host` 与 `--port` 配置监听器；`--tls-cert` 与 `--tls-key` 让它直接提供 HTTPS；`--public-url` 指定 GUI 在剥离前缀的代理之后对外公告的公开 HTTP(S) 根，`--trusted-host` 则添加更多被接受的 authority。这些都在[监听、信任与公开部署](#public-deployments)中说明，而这些 flag 设置的 `tls` 字段记录在[载体的配置](../../../docs/subsystems/web-server.zh.md#config)中：
 
